@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title></title>
+</head>
+
+<body>
+	<button onclick="startRecording()">Start Recording</button>
+	<button onclick="pauseRecording()">Recording Recording</button>
+	<button onclick="stopRecording()">Stop Recording</button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/socket.io-stream.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script>
+    $(function() {
+        var socket = io.connect();
+
+        if (!navigator.getUserMedia)
+            navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia ||
+            navigator.mozGetUserMedia || navigator.msGetUserMedia;
+
+        if (navigator.getUserMedia) {
+            navigator.getUserMedia({ audio: true }, success, function(e) {
+                alert('Error capturing audio.');
+            });
+        } else alert('getUserMedia not supported in this browser.');
+
+        var recording = false;
+
+        window.startRecording = function() {
+            recording = true;
+        }
+
+        window.pauseRecording = function() {
+            recording = false;
+            window.Stream.pause();
+        }
+
+        window.stopRecording = function() {
+            recording = false;
+            window.Stream.end();
+            setTimeout(function() {
+                location.reload();
+            }, 2000);
+        }
+
+        function convertoFloat32ToInt16(buffer) {
+            var l = buffer.length;
+            var buf = new Int16Array(l)
+
+            while (l--) {
+                buf[l] = buffer[l] * 0xFFFF; //convert to 16 bit
+            }
+            return buf.buffer
+        }
+
+        function success(e) {
+            audioContext = window.AudioContext || window.webkitAudioContext;
+            context = new audioContext();
+
+            // the sample rate is in context.sampleRate
+            audioInput = context.createMediaStreamSource(e);
+
+            var bufferSize = 2048;
+            recorder = context.createScriptProcessor(bufferSize, 1, 1);
+
+            recorder.onaudioprocess = function(e) {
+                if (!recording) return;
+                console.log('recording');
+                var left = e.inputBuffer.getChannelData(0);
+                // window.Stream.write(convertoFloat32ToInt16(left));
+
+                var stream = ss.createStream();
+ 
+				// upload a file to the server.
+				ss(socket).emit('file', stream, convertoFloat32ToInt16(left));
+				ss.createBlobReadStream(convertoFloat32ToInt16(left)).pipe(stream);
+            }
+
+            audioInput.connect(recorder)
+            recorder.connect(context.destination);
+        }
+    });
+    </script>
+</body>
+
+</html>
